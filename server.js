@@ -1,9 +1,10 @@
 const express = require('express');
 const cors = require('cors');
+const ytdl = require('ytdl-core');
 
 const app = express();
 
-// 🔥 CORS CONFIGURADO CORRETAMENTE
+// CORS
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -27,30 +28,52 @@ app.get('/', (req, res) => {
     });
 });
 
-// Rota de teste simples (SEM ytdl-core por enquanto)
+// 🔥 ROTA REAL COM ytdl-core
 app.post('/extract-audio', async (req, res) => {
     try {
         const { url } = req.body;
         
-        console.log('📥 Recebida URL:', url);
+        console.log('📥 Recebendo URL:', url);
         
         if (!url) {
             return res.status(400).json({ error: 'URL é obrigatória' });
         }
 
-        // 🔥 RESPOSTA DE TESTE - REMOVA DEPOIS
+        // Validar URL do YouTube
+        if (!ytdl.validateURL(url) && !url.includes('youtu.be')) {
+            return res.status(400).json({ error: 'URL do YouTube inválida' });
+        }
+
+        console.log('🔍 Obtendo informações do vídeo...');
+        
+        // Extrair informações do YouTube
+        const info = await ytdl.getInfo(url);
+        const title = info.videoDetails.title;
+        
+        console.log('📹 Vídeo:', title);
+        
+        // Encontrar melhor formato de áudio
+        const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+        
+        if (audioFormats.length === 0) {
+            return res.status(400).json({ error: 'Nenhum formato de áudio encontrado' });
+        }
+
+        const bestAudio = ytdl.chooseFormat(audioFormats, { quality: 'highestaudio' });
+        
+        console.log('✅ Áudio encontrado:', bestAudio.url);
+        
         res.json({
             success: true,
-            message: '✅ API conectada com sucesso!',
-            test: 'Funcionando - agora adicione ytdl-core',
-            receivedUrl: url,
-            audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+            title: title,
+            audioUrl: bestAudio.url,
+            duration: info.videoDetails.lengthSeconds
         });
 
     } catch (error) {
-        console.error('❌ Erro:', error);
+        console.error('❌ Erro na extração:', error);
         res.status(500).json({ 
-            error: 'Erro: ' + error.message 
+            error: 'Erro ao extrair áudio: ' + error.message 
         });
     }
 });
